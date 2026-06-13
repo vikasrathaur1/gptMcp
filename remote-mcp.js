@@ -404,69 +404,58 @@ function handleGetLoanProductInfo({ product }) {
 }
 
 function handleGetCustomerProfile() {
-  const customer = getDemoCustomer();
-  const loans = customer.loans ?? [];
+  const c = getDemoCustomer();
   return success({
-    customerId: customer.customerId,
-    customerName: customer.customerName,
-    mobile: customer.mobile,
-    email: customer.email,
-    relationshipStatus: customer.relationshipStatus,
-    activeLoans: loans.length,
-    activeProducts: loans.map((l) => l.productType),
+    customerName: c.customer_Name,
+    agreementNo: c.agreementNo,
+    productType: c.prodDesc,
+    relationshipStatus: c.relStatus,
+    activeLoans: 1,
+    activeProducts: [c.prodDesc],
   });
 }
 
 function handleGetLoanDetails() {
-  const customer = getDemoCustomer();
-  const loans = customer.loans ?? [];
-  if (!loans.length) return failure("No active loans found for this customer.");
-
+  const c = getDemoCustomer();
   return success({
-    customerName: customer.customerName,
-    customerId: customer.customerId,
-    loans: loans.map((loan) => ({
-      agreementId: loan.agreementId,
-      productType: loan.productType,
-      loanStatus: loan.loanStatus,
-      loanAmount: loan.loanAmount,
-      loanAmountFormatted: formatCurrency(loan.loanAmount),
-      outstandingAmount: loan.outstandingAmount,
-      outstandingAmountFormatted: formatCurrency(loan.outstandingAmount),
-      roi: `${loan.roi}% p.a.`,
-      tenureMonths: loan.tenureMonths,
-      nextEmiAmount: loan.nextEmiAmount,
-      nextEmiAmountFormatted: formatCurrency(loan.nextEmiAmount),
-      nextEmiDate: loan.nextEmiDate,
-      disbursementDate: loan.disbursementDate,
-      emiDay: loan.emiDay,
-    })),
+    customerName: c.customer_Name,
+    agreementNo: c.agreementNo,
+    productType: c.prodDesc,
+    loanStatus: c.relStatus,
+    loanAmount: c.relAmount,
+    loanAmountFormatted: formatCurrency(c.relAmount),
+    outstandingAmount: c.pos,
+    outstandingAmountFormatted: formatCurrency(c.pos),
+    roi: `${c.roi}% p.a.`,
+    grossTenure: c.grossTenure,
+    balanceTenure: c.balanceTenure,
+    nextEmiAmount: c.nextEMIAmount,
+    nextEmiAmountFormatted: formatCurrency(c.nextEMIAmount),
+    nextEmiDate: c.nextEmiDate,
+    disbursementDate: c.disbDate,
+    loanExpiryDate: c.loanExpiryDate,
+    missedEmi: c.missedEmi,
+    totalOverDue: c.totalOverDue,
   });
 }
 
 function handleGetFlexiDetails() {
-  const customer = getDemoCustomer();
-  const loan = (customer.loans ?? [])[0];
-  if (!loan) return failure("No active loans found for this customer.");
-
-  if (loan.flexiEnabled) {
+  const c = getDemoCustomer();
+  const flexiEnabled = c.flexiFlag === "Y";
+  if (flexiEnabled) {
     return success({
-      customerName: customer.customerName,
-      agreementId: loan.agreementId,
+      customerName: c.customer_Name,
+      agreementNo: c.agreementNo,
       flexiEnabled: true,
-      flexiLimit: loan.flexiLimit,
-      flexiLimitFormatted: formatCurrency(loan.flexiLimit),
-      flexiAvailable: loan.flexiAvailable,
-      flexiAvailableFormatted: formatCurrency(loan.flexiAvailable),
-      flexiUtilized: loan.flexiLimit - loan.flexiAvailable,
-      flexiUtilizedFormatted: formatCurrency(loan.flexiLimit - loan.flexiAvailable),
+      flexiLimit: c.amountDrawnLimit,
+      flexiLimitFormatted: formatCurrency(c.amountDrawnLimit),
       message:
         "Your Flexi Loan is active. You can withdraw from your available Flexi limit anytime and pay interest only on the amount utilized. Repayments go back to your Flexi limit.",
     });
   } else {
     return success({
-      customerName: customer.customerName,
-      agreementId: loan.agreementId,
+      customerName: c.customer_Name,
+      agreementNo: c.agreementNo,
       flexiEnabled: false,
       message:
         "You are not enrolled in the Flexi Loan facility. Flexi Loan lets you withdraw funds from a pre-approved limit and pay interest only on the amount used. To enroll, visit the Bajaj Finserv app or contact your relationship manager.",
@@ -476,7 +465,7 @@ function handleGetFlexiDetails() {
 }
 
 function handleRaiseServiceRequest({ requestType }) {
-  const customer = getDemoCustomer();
+  const c = getDemoCustomer();
 
   const resolutionDays = {
     NOC: 7,
@@ -491,9 +480,8 @@ function handleRaiseServiceRequest({ requestType }) {
   const ticket = {
     ticketId,
     requestType,
-    customerId: customer.customerId,
-    customerName: customer.customerName,
-    agreementId: (customer.loans ?? [])[0]?.agreementId,
+    customerName: c.customer_Name,
+    agreementNo: c.agreementNo,
     status: "OPEN",
     createdAt: new Date().toISOString(),
     estimatedResolutionDays: resolutionDays[requestType] || 5,
