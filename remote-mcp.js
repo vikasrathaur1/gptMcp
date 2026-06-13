@@ -218,10 +218,10 @@ function failure(msg) {
   };
 }
 
-function validateOtp(mobileNumber, otp) {
-  if (!customers[mobileNumber]) throw new Error("Mobile number not found.");
-  if (otp !== "123456") throw new Error("Invalid OTP. Use 123456 for demo.");
-  return customers[mobileNumber];
+function lookupCustomer(mobileNumber) {
+  const customer = customers[mobileNumber];
+  if (!customer) throw new Error("Mobile number not found.");
+  return customer;
 }
 
 function formatCurrency(amount) {
@@ -280,48 +280,27 @@ const TOOLS = [
     },
   },
   {
-    name: "send_otp",
-    title: "Send OTP to Customer",
+    name: "get_customer_profile",
+    title: "Get Customer Profile",
     description:
-      "Initiates OTP verification for a registered mobile number. Confirms the number is registered with Bajaj Finance and returns otpSent: true. In demo mode, the OTP is always '123456'. Does not modify any data.",
+      "Returns customer profile: customerId, customerName, list of active loan products, count of active loans, and relationship status (Standard / Premium).",
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: "object",
       properties: {
         mobileNumber: {
           type: "string",
-          description: "10-digit Indian mobile number registered with Bajaj Finance.",
+          description: "10-digit registered mobile number.",
         },
       },
       required: ["mobileNumber"],
     },
   },
   {
-    name: "get_customer_profile",
-    title: "Get Customer Profile",
-    description:
-      "Returns authenticated customer profile: customerId, customerName, list of active loan products, count of active loans, and relationship status (Standard / Premium). Requires valid mobileNumber and OTP.",
-    annotations: { readOnlyHint: true },
-    inputSchema: {
-      type: "object",
-      properties: {
-        mobileNumber: {
-          type: "string",
-          description: "10-digit registered mobile number.",
-        },
-        otp: {
-          type: "string",
-          description: "6-digit OTP received on the mobile number. Demo OTP is '123456'.",
-        },
-      },
-      required: ["mobileNumber", "otp"],
-    },
-  },
-  {
     name: "get_loan_details",
     title: "Get Loan Details",
     description:
-      "Returns the full loan dashboard for an authenticated customer: agreementId, productType, loanStatus, loanAmount, outstandingAmount, interest rate (ROI), tenureMonths, nextEmiAmount, nextEmiDate, disbursementDate, and emiDay.",
+      "Returns the full loan dashboard for a customer: agreementId, productType, loanStatus, loanAmount, outstandingAmount, interest rate (ROI), tenureMonths, nextEmiAmount, nextEmiDate, disbursementDate, and emiDay.",
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: "object",
@@ -330,19 +309,15 @@ const TOOLS = [
           type: "string",
           description: "10-digit registered mobile number.",
         },
-        otp: {
-          type: "string",
-          description: "6-digit OTP. Demo OTP is '123456'.",
-        },
       },
-      required: ["mobileNumber", "otp"],
+      required: ["mobileNumber"],
     },
   },
   {
     name: "get_flexi_details",
     title: "Get Flexi Loan Details",
     description:
-      "Returns Flexi Loan status for the customer's loan. If flexiEnabled is true, returns flexiLimit and flexiAvailable amounts. If false, explains the Flexi Loan feature and how to enroll. Requires valid mobileNumber and OTP.",
+      "Returns Flexi Loan status for the customer's loan. If flexiEnabled is true, returns flexiLimit and flexiAvailable amounts. If false, explains the Flexi Loan feature and how to enroll.",
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: "object",
@@ -351,12 +326,8 @@ const TOOLS = [
           type: "string",
           description: "10-digit registered mobile number.",
         },
-        otp: {
-          type: "string",
-          description: "6-digit OTP. Demo OTP is '123456'.",
-        },
       },
-      required: ["mobileNumber", "otp"],
+      required: ["mobileNumber"],
     },
   },
   {
@@ -372,10 +343,6 @@ const TOOLS = [
           type: "string",
           description: "10-digit registered mobile number.",
         },
-        otp: {
-          type: "string",
-          description: "6-digit OTP. Demo OTP is '123456'.",
-        },
         requestType: {
           type: "string",
           enum: [
@@ -390,7 +357,7 @@ const TOOLS = [
             "Type of service request. NOC = No Objection Certificate after loan closure.",
         },
       },
-      required: ["mobileNumber", "otp", "requestType"],
+      required: ["mobileNumber", "requestType"],
     },
   },
 ];
@@ -487,23 +454,10 @@ function handleGetLoanProductInfo({ product }) {
   return success(info);
 }
 
-function handleSendOtp({ mobileNumber }) {
-  if (!customers[mobileNumber]) {
-    return failure("Mobile number not found. Please check the number and try again.");
-  }
-  return success({
-    otpSent: true,
-    mobileNumber,
-    message: "OTP sent successfully to the registered mobile number.",
-    demoOtp: "123456",
-    note: "This is a demo environment. Use OTP '123456' to authenticate.",
-  });
-}
-
-function handleGetCustomerProfile({ mobileNumber, otp }) {
+function handleGetCustomerProfile({ mobileNumber }) {
   let customer;
   try {
-    customer = validateOtp(mobileNumber, otp);
+    customer = lookupCustomer(mobileNumber);
   } catch (e) {
     return failure(e.message);
   }
@@ -519,10 +473,10 @@ function handleGetCustomerProfile({ mobileNumber, otp }) {
   });
 }
 
-function handleGetLoanDetails({ mobileNumber, otp }) {
+function handleGetLoanDetails({ mobileNumber }) {
   let customer;
   try {
-    customer = validateOtp(mobileNumber, otp);
+    customer = lookupCustomer(mobileNumber);
   } catch (e) {
     return failure(e.message);
   }
@@ -549,10 +503,10 @@ function handleGetLoanDetails({ mobileNumber, otp }) {
   });
 }
 
-function handleGetFlexiDetails({ mobileNumber, otp }) {
+function handleGetFlexiDetails({ mobileNumber }) {
   let customer;
   try {
-    customer = validateOtp(mobileNumber, otp);
+    customer = lookupCustomer(mobileNumber);
   } catch (e) {
     return failure(e.message);
   }
@@ -584,10 +538,10 @@ function handleGetFlexiDetails({ mobileNumber, otp }) {
   }
 }
 
-function handleRaiseServiceRequest({ mobileNumber, otp, requestType }) {
+function handleRaiseServiceRequest({ mobileNumber, requestType }) {
   let customer;
   try {
-    customer = validateOtp(mobileNumber, otp);
+    customer = lookupCustomer(mobileNumber);
   } catch (e) {
     return failure(e.message);
   }
@@ -635,7 +589,6 @@ function createMcpServer() {
       switch (name) {
         case "discover_loans":        return handleDiscoverLoans(args);
         case "get_loan_product_info": return handleGetLoanProductInfo(args);
-        case "send_otp":              return handleSendOtp(args);
         case "get_customer_profile":  return handleGetCustomerProfile(args);
         case "get_loan_details":      return handleGetLoanDetails(args);
         case "get_flexi_details":     return handleGetFlexiDetails(args);
