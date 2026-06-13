@@ -445,14 +445,15 @@ function handleGetCustomerProfile({ mobileNumber }) {
     return failure(e.message);
   }
 
+  const loans = customer.loans ?? [];
   return success({
     customerId: customer.customerId,
     customerName: customer.customerName,
     mobile: customer.mobile,
     email: customer.email,
     relationshipStatus: customer.relationshipStatus,
-    activeLoans: customer.loans.length,
-    activeProducts: customer.loans.map((l) => l.productType),
+    activeLoans: loans.length,
+    activeProducts: loans.map((l) => l.productType),
   });
 }
 
@@ -464,10 +465,13 @@ function handleGetLoanDetails({ mobileNumber }) {
     return failure(e.message);
   }
 
+  const loans = customer.loans ?? [];
+  if (!loans.length) return failure("No active loans found for this customer.");
+
   return success({
     customerName: customer.customerName,
     customerId: customer.customerId,
-    loans: customer.loans.map((loan) => ({
+    loans: loans.map((loan) => ({
       agreementId: loan.agreementId,
       productType: loan.productType,
       loanStatus: loan.loanStatus,
@@ -494,7 +498,9 @@ function handleGetFlexiDetails({ mobileNumber }) {
     return failure(e.message);
   }
 
-  const loan = customer.loans[0];
+  const loan = (customer.loans ?? [])[0];
+  if (!loan) return failure("No active loans found for this customer.");
+
   if (loan.flexiEnabled) {
     return success({
       customerName: customer.customerName,
@@ -544,7 +550,7 @@ function handleRaiseServiceRequest({ mobileNumber, requestType }) {
     requestType,
     customerId: customer.customerId,
     customerName: customer.customerName,
-    agreementId: customer.loans[0]?.agreementId,
+    agreementId: (customer.loans ?? [])[0]?.agreementId,
     status: "OPEN",
     createdAt: new Date().toISOString(),
     estimatedResolutionDays: resolutionDays[requestType] || 5,
