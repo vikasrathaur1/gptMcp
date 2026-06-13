@@ -201,10 +201,8 @@ function failure(msg) {
   };
 }
 
-function lookupCustomer(mobileNumber) {
-  const customer = customers[mobileNumber];
-  if (!customer) throw new Error("Mobile number not found.");
-  return customer;
+function getDemoCustomer() {
+  return customers["9999999999"];
 }
 
 function formatCurrency(amount) {
@@ -266,66 +264,35 @@ const TOOLS = [
     name: "get_customer_profile",
     title: "Get Customer Profile",
     description:
-      "Returns customer profile: customerId, customerName, list of active loan products, count of active loans, and relationship status (Standard / Premium).",
+      "Returns the demo customer profile: customerId, customerName, list of active loan products, count of active loans, and relationship status.",
     annotations: { readOnlyHint: true },
-    inputSchema: {
-      type: "object",
-      properties: {
-        mobileNumber: {
-          type: "string",
-          description: "10-digit registered mobile number.",
-        },
-      },
-      required: ["mobileNumber"],
-    },
+    inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
     name: "get_loan_details",
     title: "Get Loan Details",
     description:
-      "Returns the full loan dashboard for a customer: agreementId, productType, loanStatus, loanAmount, outstandingAmount, interest rate (ROI), tenureMonths, nextEmiAmount, nextEmiDate, disbursementDate, and emiDay.",
+      "Returns the full loan dashboard: agreementId, productType, loanStatus, loanAmount, outstandingAmount, interest rate (ROI), tenureMonths, nextEmiAmount, nextEmiDate, disbursementDate, and emiDay.",
     annotations: { readOnlyHint: true },
-    inputSchema: {
-      type: "object",
-      properties: {
-        mobileNumber: {
-          type: "string",
-          description: "10-digit registered mobile number.",
-        },
-      },
-      required: ["mobileNumber"],
-    },
+    inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
     name: "get_flexi_details",
     title: "Get Flexi Loan Details",
     description:
-      "Returns Flexi Loan status for the customer's loan. If flexiEnabled is true, returns flexiLimit and flexiAvailable amounts. If false, explains the Flexi Loan feature and how to enroll.",
+      "Returns Flexi Loan status. If flexiEnabled is true, returns flexiLimit and flexiAvailable amounts. If false, explains the Flexi Loan feature and how to enroll.",
     annotations: { readOnlyHint: true },
-    inputSchema: {
-      type: "object",
-      properties: {
-        mobileNumber: {
-          type: "string",
-          description: "10-digit registered mobile number.",
-        },
-      },
-      required: ["mobileNumber"],
-    },
+    inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
     name: "raise_service_request",
     title: "Raise a Service Request",
     description:
-      "Creates a service request on the customer's account for the specified request type. Returns a ticketId (format SR-<timestamp>), requestType, status ('OPEN'), and estimated resolution time in business days.",
+      "Creates a service request for the specified request type. Returns a ticketId (format SR-<timestamp>), requestType, status ('OPEN'), and estimated resolution time in business days.",
     annotations: { destructiveHint: true },
     inputSchema: {
       type: "object",
       properties: {
-        mobileNumber: {
-          type: "string",
-          description: "10-digit registered mobile number.",
-        },
         requestType: {
           type: "string",
           enum: [
@@ -336,11 +303,10 @@ const TOOLS = [
             "Interest Certificate",
             "Repayment Schedule",
           ],
-          description:
-            "Type of service request. NOC = No Objection Certificate after loan closure.",
+          description: "Type of service request. NOC = No Objection Certificate after loan closure.",
         },
       },
-      required: ["mobileNumber", "requestType"],
+      required: ["requestType"],
     },
   },
 ];
@@ -437,14 +403,8 @@ function handleGetLoanProductInfo({ product }) {
   return success(info);
 }
 
-function handleGetCustomerProfile({ mobileNumber }) {
-  let customer;
-  try {
-    customer = lookupCustomer(mobileNumber);
-  } catch (e) {
-    return failure(e.message);
-  }
-
+function handleGetCustomerProfile() {
+  const customer = getDemoCustomer();
   const loans = customer.loans ?? [];
   return success({
     customerId: customer.customerId,
@@ -457,14 +417,8 @@ function handleGetCustomerProfile({ mobileNumber }) {
   });
 }
 
-function handleGetLoanDetails({ mobileNumber }) {
-  let customer;
-  try {
-    customer = lookupCustomer(mobileNumber);
-  } catch (e) {
-    return failure(e.message);
-  }
-
+function handleGetLoanDetails() {
+  const customer = getDemoCustomer();
   const loans = customer.loans ?? [];
   if (!loans.length) return failure("No active loans found for this customer.");
 
@@ -490,14 +444,8 @@ function handleGetLoanDetails({ mobileNumber }) {
   });
 }
 
-function handleGetFlexiDetails({ mobileNumber }) {
-  let customer;
-  try {
-    customer = lookupCustomer(mobileNumber);
-  } catch (e) {
-    return failure(e.message);
-  }
-
+function handleGetFlexiDetails() {
+  const customer = getDemoCustomer();
   const loan = (customer.loans ?? [])[0];
   if (!loan) return failure("No active loans found for this customer.");
 
@@ -527,13 +475,8 @@ function handleGetFlexiDetails({ mobileNumber }) {
   }
 }
 
-function handleRaiseServiceRequest({ mobileNumber, requestType }) {
-  let customer;
-  try {
-    customer = lookupCustomer(mobileNumber);
-  } catch (e) {
-    return failure(e.message);
-  }
+function handleRaiseServiceRequest({ requestType }) {
+  const customer = getDemoCustomer();
 
   const resolutionDays = {
     NOC: 7,
