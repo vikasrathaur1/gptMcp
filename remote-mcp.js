@@ -223,12 +223,13 @@ You are a Bajaj Finance loan assistant. You help customers understand their loan
    For a single fact, reply in one plain sentence.
 
 3. Follow-up suggestions must use ONLY these tools:
-   - get_loan_details
-   - get_flexi_details
-   - get_customer_profile
-   - raise_service_request
-   - discover_loans
-   - get_loan_product_info
+   - get_loan_details, get_loan_summary, get_loan_status, get_loan_amount
+   - get_emi_details, get_due_amount, get_balance_tenure, get_pos_amount
+   - get_flexi_details, get_overdue_details, get_interest_rate
+   - get_noc_status, get_amc_charges, get_foreclosure_status, get_loan_expiry
+   - get_disbursement_details, get_agreement_details, get_product_details
+   - check_loan_closure_eligibility, get_customer_profile
+   - raise_service_request, discover_loans, get_loan_product_info
    Never suggest actions outside these capabilities.
 
 4. Formatting guide:
@@ -322,6 +323,125 @@ const TOOLS = [
     title: "Get Flexi Loan Details",
     description:
       "Returns Flexi Loan status. If flexiEnabled is true, returns flexiLimit and flexiAvailable amounts. If false, explains the Flexi Loan feature and how to enroll.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_emi_details",
+    title: "Get EMI Details",
+    description: "Returns the next EMI amount, next EMI due date, and count of missed EMIs for the customer's loan.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_due_amount",
+    title: "Get Due Amount",
+    description: "Returns the current total due/overdue amount on the customer's loan.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_noc_status",
+    title: "Get NOC Status",
+    description: "Checks whether a No Objection Certificate (NOC) is available based on the loan closure status.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_interest_rate",
+    title: "Get Interest Rate",
+    description: "Returns the current rate of interest (ROI) applicable to the customer's loan.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_loan_status",
+    title: "Get Loan Status",
+    description: "Returns the current relationship/loan status (e.g. Active, Closed) for the customer's loan.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_balance_tenure",
+    title: "Get Balance Tenure",
+    description: "Returns the remaining number of months left in the loan repayment tenure.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_loan_amount",
+    title: "Get Loan Amount",
+    description: "Returns the total sanctioned loan amount.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_pos_amount",
+    title: "Get Principal Outstanding",
+    description: "Returns the current principal outstanding (POS) amount remaining on the loan.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_disbursement_details",
+    title: "Get Disbursement Details",
+    description: "Returns the disbursement date when the loan was disbursed to the customer.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_loan_expiry",
+    title: "Get Loan Expiry Date",
+    description: "Returns the loan expiry/maturity date.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_overdue_details",
+    title: "Get Overdue Details",
+    description: "Returns the total overdue amount and missed EMI count on the customer's loan.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_agreement_details",
+    title: "Get Agreement Details",
+    description: "Returns the loan agreement number for the customer.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_product_details",
+    title: "Get Product Details",
+    description: "Returns the product category and product ID for the customer's loan.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_loan_summary",
+    title: "Get Loan Summary",
+    description: "Returns a concise summary of the loan: customer name, loan type, status, ROI, and balance tenure.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "check_loan_closure_eligibility",
+    title: "Check Loan Closure Eligibility",
+    description: "Checks whether the loan is eligible for a closure request based on outstanding dues.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_foreclosure_status",
+    title: "Get Foreclosure Status",
+    description: "Returns whether foreclosure is available for the customer's loan.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_amc_charges",
+    title: "Get AMC Charges",
+    description: "Returns the Annual Maintenance Charges (AMC) applicable to the customer's loan.",
     annotations: { readOnlyHint: true },
     inputSchema: { type: "object", properties: {}, required: [] },
   },
@@ -538,6 +658,126 @@ function handleRaiseServiceRequest({ requestType }) {
   return success(ticket);
 }
 
+function handleGetEmiDetails() {
+  const c = getDemoCustomer();
+  return success({
+    nextEmiAmount: c.nextEMIAmount,
+    nextEmiAmountFormatted: formatCurrency(c.nextEMIAmount),
+    nextEmiDate: c.nextEmiDate,
+    missedEmi: c.missedEmi,
+  });
+}
+
+function handleGetDueAmount() {
+  const c = getDemoCustomer();
+  return success({
+    totalOverDue: c.totalOverDue,
+    totalOverDueFormatted: formatCurrency(c.totalOverDue),
+  });
+}
+
+function handleGetNocStatus() {
+  const c = getDemoCustomer();
+  const available = c.relStatus === "Closed";
+  return success({
+    nocAvailable: available,
+    loanStatus: c.relStatus,
+    message: available ? "NOC Available." : "Loan is Active. NOC not available yet.",
+  });
+}
+
+function handleGetInterestRate() {
+  const c = getDemoCustomer();
+  return success({ roi: c.roi, roiFormatted: `${c.roi}% p.a.` });
+}
+
+function handleGetLoanStatus() {
+  const c = getDemoCustomer();
+  return success({ loanStatus: c.relStatus });
+}
+
+function handleGetBalanceTenure() {
+  const c = getDemoCustomer();
+  return success({ balanceTenure: c.balanceTenure, unit: "months" });
+}
+
+function handleGetLoanAmount() {
+  const c = getDemoCustomer();
+  return success({ loanAmount: c.relAmount, loanAmountFormatted: formatCurrency(c.relAmount) });
+}
+
+function handleGetPosAmount() {
+  const c = getDemoCustomer();
+  return success({ pos: c.pos, posFormatted: formatCurrency(c.pos) });
+}
+
+function handleGetDisbursementDetails() {
+  const c = getDemoCustomer();
+  return success({ disbursementDate: c.disbDate });
+}
+
+function handleGetLoanExpiry() {
+  const c = getDemoCustomer();
+  return success({ loanExpiryDate: c.loanExpiryDate });
+}
+
+function handleGetOverdueDetails() {
+  const c = getDemoCustomer();
+  return success({
+    totalOverDue: c.totalOverDue,
+    totalOverDueFormatted: formatCurrency(c.totalOverDue),
+    missedEmi: c.missedEmi,
+  });
+}
+
+function handleGetAgreementDetails() {
+  const c = getDemoCustomer();
+  return success({ agreementNo: c.agreementNo });
+}
+
+function handleGetProductDetails() {
+  const c = getDemoCustomer();
+  return success({ prodCategory: c.prodCategory, prodId: c.prodId, prodDesc: c.prodDesc });
+}
+
+function handleGetLoanSummary() {
+  const c = getDemoCustomer();
+  return success({
+    customerName: c.customer_Name,
+    loanType: c.prodDesc,
+    loanStatus: c.relStatus,
+    roi: `${c.roi}% p.a.`,
+    balanceTenure: `${c.balanceTenure} months`,
+    agreementNo: c.agreementNo,
+  });
+}
+
+function handleCheckLoanClosureEligibility() {
+  const c = getDemoCustomer();
+  const eligible = c.totalOverDue === 0;
+  return success({
+    eligible,
+    message: eligible
+      ? "Loan is eligible for closure request."
+      : "Please clear overdue amount before closure.",
+    totalOverDue: c.totalOverDue,
+  });
+}
+
+function handleGetForeclosureStatus() {
+  const c = getDemoCustomer();
+  return success({
+    foreclosureAvailable: true,
+    loanStatus: c.relStatus,
+    message: "Foreclosure is available for this loan.",
+  });
+}
+
+function handleGetAmcCharges() {
+  const c = getDemoCustomer();
+  return success({ amcCharges: c.amcCharges, amcChargesFormatted: formatCurrency(Number(c.amcCharges)) });
+}
+
 // ─── MCP server factory ───────────────────────────────────────────────────────
 
 function createMcpServer() {
@@ -552,14 +792,31 @@ function createMcpServer() {
     const { name, arguments: args = {} } = req.params;
     try {
       switch (name) {
-        case "global_instruction":    return handleGlobalInstruction();
-        case "discover_loans":        return handleDiscoverLoans(args);
-        case "get_loan_product_info": return handleGetLoanProductInfo(args);
-        case "get_customer_profile":  return handleGetCustomerProfile(args);
-        case "get_loan_details":      return handleGetLoanDetails(args);
-        case "get_flexi_details":     return handleGetFlexiDetails(args);
-        case "raise_service_request": return handleRaiseServiceRequest(args);
-        default:                      return failure(`Unknown tool: ${name}`);
+        case "global_instruction":           return handleGlobalInstruction();
+        case "discover_loans":               return handleDiscoverLoans(args);
+        case "get_loan_product_info":        return handleGetLoanProductInfo(args);
+        case "get_customer_profile":         return handleGetCustomerProfile(args);
+        case "get_loan_details":             return handleGetLoanDetails(args);
+        case "get_flexi_details":            return handleGetFlexiDetails(args);
+        case "get_emi_details":              return handleGetEmiDetails();
+        case "get_due_amount":               return handleGetDueAmount();
+        case "get_noc_status":               return handleGetNocStatus();
+        case "get_interest_rate":            return handleGetInterestRate();
+        case "get_loan_status":              return handleGetLoanStatus();
+        case "get_balance_tenure":           return handleGetBalanceTenure();
+        case "get_loan_amount":              return handleGetLoanAmount();
+        case "get_pos_amount":              return handleGetPosAmount();
+        case "get_disbursement_details":     return handleGetDisbursementDetails();
+        case "get_loan_expiry":              return handleGetLoanExpiry();
+        case "get_overdue_details":          return handleGetOverdueDetails();
+        case "get_agreement_details":        return handleGetAgreementDetails();
+        case "get_product_details":          return handleGetProductDetails();
+        case "get_loan_summary":             return handleGetLoanSummary();
+        case "check_loan_closure_eligibility": return handleCheckLoanClosureEligibility();
+        case "get_foreclosure_status":       return handleGetForeclosureStatus();
+        case "get_amc_charges":              return handleGetAmcCharges();
+        case "raise_service_request":        return handleRaiseServiceRequest(args);
+        default:                             return failure(`Unknown tool: ${name}`);
       }
     } catch (err) {
       return failure(err.message);

@@ -211,7 +211,48 @@ function formatCurrency(amount) {
 
 // ─── Tool definitions ─────────────────────────────────────────────────────────
 
+const GLOBAL_INSTRUCTIONS = `
+# Role
+You are a Bajaj Finance loan assistant. You help customers understand their loan details and take action.
+
+# Response rules
+1. Answer only what the user asked.
+   Do NOT dump the full tool response. Extract only the relevant field(s).
+
+2. Use a table ONLY when showing 2+ comparable fields or a list of items (e.g. EMI schedule, product comparison).
+   For a single fact, reply in one plain sentence.
+
+3. Follow-up suggestions must use ONLY these tools:
+   - get_loan_details
+   - get_flexi_details
+   - get_customer_profile
+   - raise_service_request
+   - discover_loans
+   - get_loan_product_info
+   Never suggest actions outside these capabilities.
+
+4. Formatting guide:
+   - Single value  → one sentence ("Your next EMI is ₹132 on 2 Aug 2026.")
+   - 2–5 fields    → markdown table with Field | Value columns
+   - List/options  → bullet list, max 4 bullets
+   - Confirmation  → bold the key outcome, one follow-up question
+
+5. Suggest 1–2 follow-ups at the end of each response, phrased as short tap-ready questions.
+   Only suggest what the available tools can actually answer.
+
+# Tone
+Concise, friendly, professional. No filler phrases.
+`.trim();
+
 const TOOLS = [
+  {
+    name: "global_instruction",
+    title: "Global Assistant Instructions",
+    description:
+      "ALWAYS call this tool first before calling any other tool. Returns the behavior rules and response format the assistant must follow for every reply in this session.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
   {
     name: "discover_loans",
     title: "Discover Loan Products",
@@ -397,6 +438,10 @@ function handleDiscoverLoans({ purpose = "", employment_type = "any", has_collat
   });
 }
 
+function handleGlobalInstruction() {
+  return success({ instructions: GLOBAL_INSTRUCTIONS });
+}
+
 function handleGetLoanProductInfo({ product }) {
   const info = loanProducts[product];
   if (!info) return failure(`Unknown product '${product}'. Valid products: ${Object.keys(loanProducts).join(", ")}`);
@@ -507,6 +552,7 @@ function createMcpServer() {
     const { name, arguments: args = {} } = req.params;
     try {
       switch (name) {
+        case "global_instruction":    return handleGlobalInstruction();
         case "discover_loans":        return handleDiscoverLoans(args);
         case "get_loan_product_info": return handleGetLoanProductInfo(args);
         case "get_customer_profile":  return handleGetCustomerProfile(args);
