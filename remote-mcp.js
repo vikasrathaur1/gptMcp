@@ -204,13 +204,12 @@ function fmt(amount) {
 }
 
 function success(data, structuredContent, narration) {
-  // When a widget exists: pass empty content[] so ChatGPT renders ONLY the
-  // widget iframe and does NOT generate a markdown summary table below it.
-  // The model uses structuredContent for context; content[] drives text output.
+  // content[] drives what ChatGPT narrates as text below the widget.
+  // We use a zero-width space so the array is non-empty (required by MCP spec)
+  // but ChatGPT renders nothing visible — the widget handles all display.
   let content;
   if (structuredContent !== undefined) {
-    // Empty text suppresses all ChatGPT text rendering below the widget.
-    content = [{ type: 'text', text: '' }];
+    content = [{ type: 'text', text: '\u200b' }]; // zero-width space = invisible
   } else {
     const text = narration !== undefined
       ? narration
@@ -245,85 +244,71 @@ const WIDGET_LOAN_DASHBOARD = `<!DOCTYPE html>
 <meta charset="utf-8"/>
 <title>Loan Dashboard</title>
 <style>
-  :root { font-family: "Inter", system-ui, sans-serif; color: #0b0b0f; }
-  body { margin: 0; padding: 10px; background: #f6f8fb; }
-  .card { background: #fff; border-radius: 14px; padding: 14px 16px; box-shadow: 0 2px 10px rgba(0,0,0,.07); max-width: 390px; margin: 0 auto; }
-  .hdr { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
-  .hdr h2 { margin: 0; font-size: .95rem; color: #1a1a2e; }
-  .hdr .sub { font-size: .72rem; color: #6c768a; margin-top: 2px; }
-  .badge { flex-shrink: 0; padding: 2px 9px; border-radius: 20px; font-size: .7rem; font-weight: 700; background: #e6faf0; color: #1a7f50; margin-left: 8px; margin-top: 2px; }
-  .badge.closed { background: #fce; color: #a00; }
-  table { width: 100%; border-collapse: collapse; }
-  tr { border-bottom: 1px solid #f3f4f8; }
-  tr:last-child { border-bottom: none; }
-  td { padding: 6px 2px; font-size: .85rem; vertical-align: middle; }
-  td:first-child { color: #6c768a; width: 50%; }
-  td:last-child { font-weight: 600; text-align: right; }
-  .cal { display: inline-flex; align-items: center; gap: 4px; background: #f0f4ff; color: #3b5bdb; border-radius: 7px; padding: 2px 7px; font-size: .78rem; font-weight: 600; }
-  .cal svg { width: 11px; height: 11px; }
-  .flexi { margin-top: 10px; background: #f0f4ff; border-radius: 9px; padding: 9px 11px; font-size: .82rem; }
-  .flexi .lbl { color: #6c768a; font-size: .72rem; margin-bottom: 2px; }
-  .bar { background: #dde3f5; border-radius: 5px; height: 5px; margin-top: 5px; }
-  .bar-fill { background: #3b5bdb; border-radius: 5px; height: 5px; }
-  .ok { color: #1a7f50; } .err { color: #c00; }
+  :root{font-family:"Inter",system-ui,sans-serif;color:#0b0b0f}
+  body{margin:0;padding:10px;background:#f6f8fb}
+  .card{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.07);max-width:390px;margin:0 auto}
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+  .hdr h2{margin:0;font-size:.95rem;color:#1a1a2e}
+  .hdr .sub{font-size:.72rem;color:#6c768a;margin-top:2px}
+  .badge{flex-shrink:0;padding:2px 9px;border-radius:20px;font-size:.7rem;font-weight:700;background:#e6faf0;color:#1a7f50;margin-left:8px;margin-top:2px}
+  .badge.closed{background:#fce;color:#a00}
+  table{width:100%;border-collapse:collapse}
+  tr{border-bottom:1px solid #f3f4f8}
+  tr:last-child{border-bottom:none}
+  td{padding:6px 2px;font-size:.85rem;vertical-align:middle}
+  td:first-child{color:#6c768a;width:50%}
+  td:last-child{font-weight:600;text-align:right}
+  .cal{display:inline-flex;align-items:center;gap:4px;background:#f0f4ff;color:#3b5bdb;border-radius:7px;padding:2px 7px;font-size:.78rem;font-weight:600}
+  .flexi{margin-top:10px;background:#f0f4ff;border-radius:9px;padding:9px 11px;font-size:.82rem}
+  .flexi .lbl{color:#6c768a;font-size:.72rem;margin-bottom:2px}
+  .bar{background:#dde3f5;border-radius:5px;height:5px;margin-top:5px}
+  .bar-fill{background:#3b5bdb;border-radius:5px;height:5px}
+  .ok{color:#1a7f50}.err{color:#c00}
+  #card p{margin:0;color:#6c768a;font-size:.82rem}
 </style>
 </head>
 <body>
-<div class="card" id="card"><p style="color:#6c768a;font-size:.82rem;margin:0">Loading…</p></div>
-<script type="module">
-  let rpcId=0; const pending=new Map();
-  const notify=(m,p)=>window.parent.postMessage({jsonrpc:"2.0",method:m,params:p},"*");
-  const request=(m,p)=>new Promise((res,rej)=>{const id=++rpcId;pending.set(id,{resolve:res,reject:rej});window.parent.postMessage({jsonrpc:"2.0",id,method:m,params:p},"*");});
-  window.addEventListener("message",e=>{
-    if(e.source!==window.parent)return;
-    const m=e.data; if(!m||m.jsonrpc!=="2.0")return;
-    if(typeof m.id==="number"){const p=pending.get(m.id);if(!p)return;pending.delete(m.id);m.error?p.reject(m.error):p.resolve(m.result);}
-    if(m.method==="ui/notifications/tool-result")render(m.params?.structuredContent);
-  },{passive:true});
-  async function init(){
-    // ChatGPT populates window.openai.toolResult synchronously before widget loads.
-    // Try it first so we never show a blank "Loading..." state.
-    if(window.openai?.toolResult){
-      render(window.openai.toolResult.structuredContent || window.openai.toolResult);
-    }
-    try{
-      const result = await request("ui/initialize",{appInfo:{name:"loan-dashboard",version:"2.0"},appCapabilities:{},protocolVersion:"2026-01-26"});
-      notify("ui/notifications/initialized",{});
-      // Some hosts send the tool result back in the initialize response
-      if(result?.structuredContent) render(result.structuredContent);
-    }catch(e){ console.warn("bridge init failed",e); }
+<div class="card" id="card"><p>Loading…</p></div>
+<script>
+  // ── ChatGPT Apps SDK: toolOutput is set synchronously before script runs ──
+  function cal(s){
+    if(!s)return null;
+    var d;
+    if(/\d{2}\/\d{2}\/\d{4}/.test(s)){var p=s.split("/");d=new Date(p[2]+"-"+p[1]+"-"+p[0]);}
+    else d=new Date(s);
+    if(isNaN(d.getTime()))return s;
+    return '<span class="cal">📅 '+d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})+'</span>';
   }
-  function cal(dateStr){
-    if(!dateStr)return null;
-    let d;
-    if(/\d{2}\/\d{2}\/\d{4}/.test(dateStr)){const p=dateStr.split("/");d=new Date(p[2]+"-"+p[1]+"-"+p[0]);}
-    else d=new Date(dateStr);
-    if(isNaN(d))return dateStr;
-    const lbl=d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
-    return \`<span class="cal"><svg viewBox="0 0 16 16" fill="#3b5bdb"><path d="M4 1v1H2a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1h-2V1h-1v1H5V1H4zm-2 4h12v8H2V5zm2 2v1h2V7H4zm3 0v1h2V7H7zm3 0v1h2V7h-2zM4 10v1h2v-1H4zm3 0v1h2v-1H7z"/></svg>\${lbl}</span>\`;
-  }
-  function row(lbl,val){if(val===null||val===undefined||val==="")return"";return\`<tr><td>\${lbl}</td><td>\${val}</td></tr>\`;}
+  function row(l,v){if(v===null||v===undefined||v==="")return"";return"<tr><td>"+l+"</td><td>"+v+"</td></tr>";}
   function render(d){
     if(!d)return;
-    const rows=[
-      row("Loan Amount",       d.loanAmountFormatted||(d.loanAmount?"₹"+d.loanAmount:null)),
-      row("Outstanding (POS)", d.outstandingAmountFormatted||(d.outstandingAmount?"₹"+d.outstandingAmount:null)),
-      row("Interest Rate",     d.roi||null),
-      row("Tenure",            d.grossTenure?\`\${d.grossTenure} months (\${d.balanceTenure} remaining)\`:null),
-      row("Next EMI",          d.nextEmiAmountFormatted||(d.nextEmiAmount?"₹"+d.nextEmiAmount:null)),
-      row("Next EMI Date",     cal(d.nextEmiDate)),
-      row("Disbursed On",      cal(d.disbursementDate)),
-      row("Loan Expiry",       cal(d.loanExpiryDate)),
-      row("Overdue",           d.totalOverDue!==undefined?
-        (d.totalOverDue>0?\`<span class="err">₹\${d.totalOverDue}</span>\`:\`<span class="ok">Nil ✓</span>\`):null),
+    var sc=d.structuredContent||d;
+    var rows=[
+      row("Loan Amount",sc.loanAmountFormatted||(sc.loanAmount?"₹"+sc.loanAmount:null)),
+      row("Outstanding",sc.outstandingAmountFormatted||(sc.outstandingAmount?"₹"+sc.outstandingAmount:null)),
+      row("Interest Rate",sc.roi||null),
+      row("Tenure",sc.grossTenure?sc.grossTenure+" months ("+sc.balanceTenure+" remaining)":null),
+      row("Next EMI",sc.nextEmiAmountFormatted||(sc.nextEmiAmount?"₹"+sc.nextEmiAmount:null)),
+      row("Next EMI Date",cal(sc.nextEmiDate)),
+      row("Disbursed On",cal(sc.disbursementDate)),
+      row("Loan Expiry",cal(sc.loanExpiryDate)),
+      row("Overdue",sc.totalOverDue!==undefined?(sc.totalOverDue>0?'<span class="err">₹'+sc.totalOverDue+'</span>':'<span class="ok">Nil ✓</span>'):null),
     ].filter(Boolean).join("");
-    const flexi=d.flexiEnabled?\`<div class="flexi"><p class="lbl">Flexi Limit</p><strong>\${d.flexiLimitFormatted||""}</strong><div class="bar"><div class="bar-fill" style="width:72%"></div></div></div>\`:"";
-    document.getElementById("card").innerHTML=\`
-      <div class="hdr"><div><h2>\${d.customerName||"Customer"}</h2><div class="sub">\${d.agreementNo||""}\${d.productType?" · "+d.productType:""}</div></div>
-      <span class="badge \${d.loanStatus==="Active"?"":"closed"}">\${d.loanStatus||""}</span></div>
-      <table>\${rows}</table>\${flexi}\`;
+    var flexi=sc.flexiEnabled?'<div class="flexi"><p class="lbl">Flexi Limit</p><strong>'+(sc.flexiLimitFormatted||"")+'</strong><div class="bar"><div class="bar-fill" style="width:72%"></div></div></div>':"";
+    document.getElementById("card").innerHTML=
+      '<div class="hdr"><div><h2>'+(sc.customerName||"Customer")+'</h2>'
+      +'<div class="sub">'+(sc.agreementNo||"")+(sc.productType?" · "+sc.productType:"")+'</div></div>'
+      +'<span class="badge '+(sc.loanStatus==="Active"?"":"closed")+'">'+(sc.loanStatus||"")+'</span></div>'
+      +"<table>"+rows+"</table>"+flexi;
   }
-  init().catch(console.error);
+  // 1. Render immediately from window.openai.toolOutput (sync, always available)
+  render(window.openai&&window.openai.toolOutput);
+  // 2. Also listen for live updates via MCP Apps bridge
+  window.addEventListener("message",function(e){
+    if(e.source!==window.parent)return;
+    var m=e.data;
+    if(m&&m.method==="ui/notifications/tool-result")render(m.params);
+  },{passive:true});
 </script>
 </body>
 </html>`;
@@ -336,95 +321,46 @@ const WIDGET_EMI_CARD = `<!DOCTYPE html>
 <meta charset="utf-8"/>
 <title>EMI & Balance</title>
 <style>
-  :root { font-family: "Inter", system-ui, sans-serif; color: #0b0b0f; }
-  body { margin: 0; padding: 16px; background: #f6f8fb; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 420px; margin: 0 auto; }
-  .tile { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
-  .tile .label { font-size: .78rem; color: #6c768a; margin: 0 0 6px; }
-  .tile .value { font-size: 1.25rem; font-weight: 700; margin: 0; }
-  .tile .sub { font-size: .8rem; color: #6c768a; margin: 4px 0 0; }
-  .tile.wide { grid-column: span 2; }
-  .tile.alert .value { color: #c00; }
-  .tile.ok .value { color: #1a7f50; }
-  .emi-date { font-size: .85rem; color: #3b5bdb; font-weight: 600; margin: 4px 0 0; }
+  :root{font-family:"Inter",system-ui,sans-serif;color:#0b0b0f}
+  body{margin:0;padding:10px;background:#f6f8fb}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:390px;margin:0 auto}
+  .tile{background:#fff;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .tile .lbl{font-size:.72rem;color:#6c768a;margin:0 0 4px}
+  .tile .val{font-size:1.15rem;font-weight:700;margin:0}
+  .tile .sub{font-size:.75rem;color:#6c768a;margin:3px 0 0}
+  .tile.wide{grid-column:span 2}
+  .cal{display:inline-flex;align-items:center;gap:3px;background:#f0f4ff;color:#3b5bdb;border-radius:6px;padding:2px 6px;font-size:.78rem;font-weight:600}
+  .ok{color:#1a7f50}.err{color:#c00}
 </style>
 </head>
 <body>
-<div class="grid" id="grid">
-  <div class="tile wide"><p class="label">Loading…</p></div>
-</div>
-<script type="module">
-  let rpcId = 0;
-  const pending = new Map();
-  const notify  = (m, p) => window.parent.postMessage({ jsonrpc:"2.0", method:m, params:p }, "*");
-  const request = (m, p) => new Promise((res, rej) => {
-    const id = ++rpcId;
-    pending.set(id, { resolve:res, reject:rej });
-    window.parent.postMessage({ jsonrpc:"2.0", id, method:m, params:p }, "*");
-  });
-
-  window.addEventListener("message", e => {
-    if (e.source !== window.parent) return;
-    const msg = e.data;
-    if (!msg || msg.jsonrpc !== "2.0") return;
-    if (typeof msg.id === "number") {
-      const p = pending.get(msg.id);
-      if (!p) return;
-      pending.delete(msg.id);
-      msg.error ? p.reject(msg.error) : p.resolve(msg.result);
-    }
-    if (msg.method === "ui/notifications/tool-result") render(msg.params?.structuredContent);
-  }, { passive: true });
-
-  async function init() {
-    if(window.openai?.toolResult){
-      render(window.openai.toolResult.structuredContent || window.openai.toolResult);
-    }
-    try{
-      const result = await request("ui/initialize", { appInfo:{ name:"emi-card", version:"1.0" }, appCapabilities:{}, protocolVersion:"2026-01-26" });
-      notify("ui/notifications/initialized", {});
-      if(result?.structuredContent) render(result.structuredContent);
-    }catch(e){ console.warn("bridge init failed",e); }
+<div class="grid" id="grid"><div class="tile wide"><p class="lbl">Loading…</p></div></div>
+<script>
+  function cal(s){
+    if(!s)return null;
+    var d=(/\d{2}\/\d{2}\/\d{4}/.test(s))?(function(){var p=s.split("/");return new Date(p[2]+"-"+p[1]+"-"+p[0]);})():new Date(s);
+    if(isNaN(d.getTime()))return s;
+    return '<span class="cal">📅 '+d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})+'</span>';
   }
-
-  function fmtDate(iso) {
-    if (!iso) return "—";
-    return new Date(iso).toLocaleDateString("en-IN",{ day:"2-digit", month:"short", year:"numeric" });
+  function render(d){
+    if(!d)return;
+    var sc=d.structuredContent||d;
+    document.getElementById("grid").innerHTML=
+      '<div class="tile"><p class="lbl">Next EMI Amount</p><p class="val">'+(sc.nextEmiAmountFormatted||(sc.nextEmiAmount?"₹"+sc.nextEmiAmount:"—"))+'</p>'
+      +(sc.nextEmiDate?'<p class="sub">'+cal(sc.nextEmiDate)+'</p>':'')+'</div>'
+      +'<div class="tile"><p class="lbl">Missed EMIs</p><p class="val '+(sc.missedEmi>0?"err":"ok")+'">'+(sc.missedEmi!==undefined?sc.missedEmi:"—")+'</p>'
+      +'<p class="sub">'+(sc.missedEmi>0?"Action required":"All clear")+'</p></div>'
+      +(sc.balanceTenure!==undefined?'<div class="tile"><p class="lbl">Balance Tenure</p><p class="val">'+sc.balanceTenure+'</p><p class="sub">months remaining</p></div>':"")
+      +(sc.pos!==undefined||sc.posFormatted?'<div class="tile"><p class="lbl">Principal Outstanding</p><p class="val">'+(sc.posFormatted||(sc.pos?"₹"+sc.pos:"—"))+'</p></div>':"")
+      +'<div class="tile wide '+(sc.totalOverDue>0?"err":"ok")+'"><p class="lbl">Total Overdue</p>'
+      +'<p class="val">'+(sc.totalOverDue!==undefined?(sc.totalOverDue>0?(sc.totalOverDueFormatted||"₹"+sc.totalOverDue):"₹0 — No dues"):"—")+'</p></div>';
   }
-
-  function render(d) {
-    if (!d) return;
-    const g = document.getElementById("grid");
-    const overdueClass = d.totalOverDue > 0 ? "alert" : "ok";
-    g.innerHTML = \`
-      <div class="tile">
-        <p class="label">Next EMI Amount</p>
-        <p class="value">\${d.nextEmiAmountFormatted || d.nextEmiAmount || "—"}</p>
-        <p class="emi-date">\${fmtDate(d.nextEmiDate)}</p>
-      </div>
-      <div class="tile">
-        <p class="label">Missed EMIs</p>
-        <p class="value \${d.missedEmi > 0 ? "alert" : "ok"}">\${d.missedEmi !== undefined ? d.missedEmi : "—"}</p>
-        <p class="sub">\${d.missedEmi > 0 ? "Action required" : "All clear"}</p>
-      </div>
-      <div class="tile">
-        <p class="label">Balance Tenure</p>
-        <p class="value">\${d.balanceTenure !== undefined ? d.balanceTenure : "—"}</p>
-        <p class="sub">months remaining</p>
-      </div>
-      <div class="tile">
-        <p class="label">Principal Outstanding</p>
-        <p class="value">\${d.posFormatted || d.pos || "—"}</p>
-        <p class="sub">current POS</p>
-      </div>
-      <div class="tile wide \${overdueClass}">
-        <p class="label">Total Overdue</p>
-        <p class="value">\${d.totalOverDue !== undefined ? (d.totalOverDue > 0 ? (d.totalOverDueFormatted || "₹"+d.totalOverDue) : "₹0 — No dues") : "—"}</p>
-      </div>
-    \`;
-  }
-
-  init().catch(console.error);
+  render(window.openai&&window.openai.toolOutput);
+  window.addEventListener("message",function(e){
+    if(e.source!==window.parent)return;
+    var m=e.data;
+    if(m&&m.method==="ui/notifications/tool-result")render(m.params);
+  },{passive:true});
 </script>
 </body>
 </html>`;
@@ -437,116 +373,63 @@ const WIDGET_LOAN_DISCOVERY = `<!DOCTYPE html>
 <meta charset="utf-8"/>
 <title>Loan Products</title>
 <style>
-  :root { font-family: "Inter", system-ui, sans-serif; color: #0b0b0f; }
-  body { margin: 0; padding: 16px; background: #f6f8fb; }
-  h2 { font-size: 1rem; margin: 0 0 14px; color: #1a1a2e; }
-  .list { display: flex; flex-direction: column; gap: 12px; max-width: 440px; margin: 0 auto; }
-  .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
-  .card h3 { margin: 0 0 4px; font-size: .95rem; }
-  .card .reason { font-size: .82rem; color: #6c768a; margin: 0 0 10px; }
-  .meta { display: flex; gap: 8px; flex-wrap: wrap; }
-  .chip { background: #f0f4ff; color: #3b5bdb; border-radius: 20px; padding: 3px 10px; font-size: .78rem; font-weight: 600; }
-  .apply-btn { display: inline-block; margin-top: 12px; padding: 8px 16px; background: #3b5bdb; color: #fff; border-radius: 10px; font-size: .85rem; font-weight: 600; text-decoration: none; cursor: pointer; border: none; }
-  .tip { font-size: .8rem; color: #6c768a; margin: 16px auto 0; text-align: center; max-width: 440px; }
-  .product-detail { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,.07); max-width: 440px; margin: 0 auto; }
-  .product-detail h2 { margin: 0 0 12px; }
-  .product-detail table { width: 100%; border-collapse: collapse; }
-  .product-detail tr { border-bottom: 1px solid #f0f2f8; }
-  .product-detail tr:last-child { border-bottom: none; }
-  .product-detail td { padding: 8px 4px; font-size: .88rem; }
-  .product-detail td:first-child { color: #6c768a; width: 45%; }
-  .product-detail td:last-child { font-weight: 600; text-align: right; }
-  .features { margin: 12px 0 0; padding: 0; list-style: none; }
-  .features li::before { content: "✓ "; color: #1a7f50; font-weight: 700; }
-  .features li { font-size: .85rem; margin: 4px 0; }
+  :root{font-family:"Inter",system-ui,sans-serif;color:#0b0b0f}
+  body{margin:0;padding:10px;background:#f6f8fb}
+  .wrap{max-width:430px;margin:0 auto}
+  h2{font-size:.9rem;margin:0 0 10px;color:#1a1a2e}
+  .card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:10px}
+  .card h3{margin:0 0 3px;font-size:.88rem}
+  .card .reason{font-size:.78rem;color:#6c768a;margin:0 0 8px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{background:#f0f4ff;color:#3b5bdb;border-radius:20px;padding:2px 9px;font-size:.74rem;font-weight:600}
+  .detail{background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.07)}
+  .detail h2{margin:0 0 10px;font-size:1rem}
+  table{width:100%;border-collapse:collapse}
+  tr{border-bottom:1px solid #f3f4f8}tr:last-child{border-bottom:none}
+  td{padding:6px 2px;font-size:.84rem}td:first-child{color:#6c768a;width:45%}td:last-child{font-weight:600;text-align:right}
+  ul{margin:8px 0 12px;padding-left:0;list-style:none}
+  li::before{content:"✓ ";color:#1a7f50;font-weight:700}li{font-size:.82rem;margin:3px 0}
+  .apply{display:inline-block;margin-top:4px;padding:7px 16px;background:#3b5bdb;color:#fff;border-radius:9px;font-size:.82rem;font-weight:600;text-decoration:none}
+  .tip{font-size:.76rem;color:#6c768a;text-align:center;margin:6px 0 0}
 </style>
 </head>
 <body>
-<div id="root"><p style="color:#6c768a;padding:16px">Loading products…</p></div>
-<script type="module">
-  let rpcId = 0;
-  const pending = new Map();
-  const notify  = (m, p) => window.parent.postMessage({ jsonrpc:"2.0", method:m, params:p }, "*");
-  const request = (m, p) => new Promise((res, rej) => {
-    const id = ++rpcId;
-    pending.set(id, { resolve:res, reject:rej });
-    window.parent.postMessage({ jsonrpc:"2.0", id, method:m, params:p }, "*");
-  });
-
-  window.addEventListener("message", e => {
-    if (e.source !== window.parent) return;
-    const msg = e.data;
-    if (!msg || msg.jsonrpc !== "2.0") return;
-    if (typeof msg.id === "number") {
-      const p = pending.get(msg.id);
-      if (!p) return;
-      pending.delete(msg.id);
-      msg.error ? p.reject(msg.error) : p.resolve(msg.result);
-    }
-    if (msg.method === "ui/notifications/tool-result") render(msg.params?.structuredContent);
-  }, { passive: true });
-
-  async function init() {
-    if(window.openai?.toolResult){
-      render(window.openai.toolResult.structuredContent || window.openai.toolResult);
-    }
-    try{
-      const result = await request("ui/initialize", { appInfo:{ name:"loan-discovery", version:"1.0" }, appCapabilities:{}, protocolVersion:"2026-01-26" });
-      notify("ui/notifications/initialized", {});
-      if(result?.structuredContent) render(result.structuredContent);
-    }catch(e){ console.warn("bridge init failed",e); }
-  }
-
-  function render(d) {
-    if (!d) return;
-    const root = document.getElementById("root");
-
-    // Single product detail view
-    if (d.name && d.interest_rate) {
-      root.innerHTML = \`
-        <div class="product-detail">
-          <h2>\${d.name}</h2>
-          <table>
-            <tr><td>Interest Rate</td><td>\${d.interest_rate}</td></tr>
-            <tr><td>Max Amount</td><td>\${d.max_amount}</td></tr>
-            <tr><td>Tenure</td><td>\${d.tenure}</td></tr>
-            <tr><td>Processing Fee</td><td>\${d.processing_fee}</td></tr>
-            <tr><td>Eligibility</td><td style="font-weight:400;font-size:.82rem">\${d.eligibility}</td></tr>
-          </table>
-          <ul class="features">
-            \${(d.key_features||[]).map(f=>\`<li>\${f}</li>\`).join("")}
-          </ul>
-          <a class="apply-btn" href="\${d.apply_now}" target="_blank" rel="noopener">Apply Now →</a>
-        </div>
-      \`;
+<div class="wrap" id="root"><p style="color:#6c768a;font-size:.85rem">Loading…</p></div>
+<script>
+  function render(d){
+    if(!d)return;
+    var sc=d.structuredContent||d;
+    var root=document.getElementById("root");
+    // Single product detail
+    if(sc.name&&sc.interest_rate){
+      root.innerHTML='<div class="detail"><h2>'+sc.name+'</h2><table>'
+        +'<tr><td>Interest Rate</td><td>'+sc.interest_rate+'</td></tr>'
+        +'<tr><td>Max Amount</td><td>'+sc.max_amount+'</td></tr>'
+        +'<tr><td>Tenure</td><td>'+sc.tenure+'</td></tr>'
+        +'<tr><td>Processing Fee</td><td>'+sc.processing_fee+'</td></tr>'
+        +'<tr><td>Eligibility</td><td style="font-weight:400;font-size:.78rem">'+sc.eligibility+'</td></tr>'
+        +'</table><ul>'+(sc.key_features||[]).map(function(f){return"<li>"+f+"</li>";}).join("")+'</ul>'
+        +'<a class="apply" href="'+sc.apply_now+'" target="_blank" rel="noopener">Apply Now →</a></div>';
       return;
     }
-
-    // Discovery list view
-    if (d.recommendations && d.recommendations.length) {
-      root.innerHTML = \`
-        <div class="list">
-          <h2>Recommended for you (\${d.totalRecommendations})</h2>
-          \${d.recommendations.map(r => \`
-            <div class="card">
-              <h3>\${r.productName}</h3>
-              <p class="reason">\${r.reason}</p>
-              <div class="meta">
-                <span class="chip">\${r.interestRate}</span>
-                <span class="chip">Up to \${r.maxAmount}</span>
-              </div>
-            </div>
-          \`).join("")}
-          <p class="tip">Ask me about any of these products for full details and apply link.</p>
-        </div>
-      \`;
+    // Discovery list
+    if(sc.recommendations&&sc.recommendations.length){
+      root.innerHTML='<div class="wrap"><h2>Recommended for you ('+sc.totalRecommendations+')</h2>'
+        +sc.recommendations.map(function(r){
+          return'<div class="card"><h3>'+r.productName+'</h3><p class="reason">'+r.reason+'</p>'
+            +'<div class="chips"><span class="chip">'+r.interestRate+'</span><span class="chip">Up to '+r.maxAmount+'</span></div></div>';
+        }).join("")
+        +'<p class="tip">Ask me about any product for full details and apply link.</p></div>';
       return;
     }
-
-    root.innerHTML = \`<p style="padding:16px;color:#6c768a">No products found. Try describing what you need.</p>\`;
+    root.innerHTML='<p style="padding:12px;color:#6c768a;font-size:.85rem">No products found. Try describing what you need.</p>';
   }
-
-  init().catch(console.error);
+  render(window.openai&&window.openai.toolOutput);
+  window.addEventListener("message",function(e){
+    if(e.source!==window.parent)return;
+    var m=e.data;
+    if(m&&m.method==="ui/notifications/tool-result")render(m.params);
+  },{passive:true});
 </script>
 </body>
 </html>`;
@@ -559,86 +442,52 @@ const WIDGET_SERVICE_REQUEST = `<!DOCTYPE html>
 <meta charset="utf-8"/>
 <title>Service Request</title>
 <style>
-  :root { font-family: "Inter", system-ui, sans-serif; color: #0b0b0f; }
-  body { margin: 0; padding: 16px; background: #f6f8fb; }
-  .card { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,.07); max-width: 400px; margin: 0 auto; }
-  .icon { font-size: 2rem; margin-bottom: 8px; }
-  h2 { margin: 0 0 4px; font-size: 1.05rem; }
-  .sub { color: #6c768a; font-size: .85rem; margin: 0 0 18px; }
-  .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: .8rem; font-weight: 600; background: #fff8e1; color: #b45309; margin-bottom: 16px; }
-  .badge.resolved { background: #e6faf0; color: #1a7f50; }
-  table { width: 100%; border-collapse: collapse; }
-  tr { border-bottom: 1px solid #f0f2f8; }
-  tr:last-child { border-bottom: none; }
-  td { padding: 8px 4px; font-size: .88rem; }
-  td:first-child { color: #6c768a; width: 50%; }
-  td:last-child { font-weight: 600; text-align: right; }
-  .tip { font-size: .8rem; color: #6c768a; margin-top: 16px; background: #f6f8fb; border-radius: 8px; padding: 10px 12px; }
+  :root{font-family:"Inter",system-ui,sans-serif;color:#0b0b0f}
+  body{margin:0;padding:10px;background:#f6f8fb}
+  .card{background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.07);max-width:380px;margin:0 auto}
+  .icon{font-size:1.8rem;margin-bottom:6px}
+  h2{margin:0 0 3px;font-size:.95rem}
+  .sub{color:#6c768a;font-size:.8rem;margin:0 0 12px}
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:700;background:#fff8e1;color:#b45309;margin-bottom:12px}
+  table{width:100%;border-collapse:collapse}
+  tr{border-bottom:1px solid #f3f4f8}tr:last-child{border-bottom:none}
+  td{padding:6px 2px;font-size:.84rem}td:first-child{color:#6c768a;width:48%}td:last-child{font-weight:600;text-align:right}
+  .tip{font-size:.76rem;color:#6c768a;margin-top:12px;background:#f6f8fb;border-radius:7px;padding:8px 10px}
 </style>
 </head>
 <body>
-<div id="root"><p style="color:#6c768a;padding:16px">Loading service request…</p></div>
-<script type="module">
-  let rpcId = 0;
-  const pending = new Map();
-  const notify  = (m, p) => window.parent.postMessage({ jsonrpc:"2.0", method:m, params:p }, "*");
-  const request = (m, p) => new Promise((res, rej) => {
-    const id = ++rpcId;
-    pending.set(id, { resolve:res, reject:rej });
-    window.parent.postMessage({ jsonrpc:"2.0", id, method:m, params:p }, "*");
-  });
-
-  window.addEventListener("message", e => {
-    if (e.source !== window.parent) return;
-    const msg = e.data;
-    if (!msg || msg.jsonrpc !== "2.0") return;
-    if (typeof msg.id === "number") {
-      const p = pending.get(msg.id);
-      if (!p) return;
-      pending.delete(msg.id);
-      msg.error ? p.reject(msg.error) : p.resolve(msg.result);
-    }
-    if (msg.method === "ui/notifications/tool-result") render(msg.params?.structuredContent);
-  }, { passive: true });
-
-  async function init() {
-    if(window.openai?.toolResult){
-      render(window.openai.toolResult.structuredContent || window.openai.toolResult);
-    }
-    try{
-      const result = await request("ui/initialize", { appInfo:{ name:"service-request", version:"1.0" }, appCapabilities:{}, protocolVersion:"2026-01-26" });
-      notify("ui/notifications/initialized", {});
-      if(result?.structuredContent) render(result.structuredContent);
-    }catch(e){ console.warn("bridge init failed",e); }
+<div id="root"><div class="card"><p style="color:#6c768a;font-size:.85rem;margin:0">Loading…</p></div></div>
+<script>
+  function fmtDate(s){
+    if(!s)return"—";
+    var d=new Date(s);
+    return isNaN(d.getTime())?s:d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
   }
-
-  function fmtDate(iso) {
-    if (!iso) return "—";
-    return new Date(iso).toLocaleDateString("en-IN",{ day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
+  function render(d){
+    if(!d)return;
+    var sc=d.structuredContent||d;
+    document.getElementById("root").innerHTML=
+      '<div class="card"><div class="icon">🎫</div>'
+      +'<h2>Service Request Raised</h2>'
+      +'<p class="sub">'+(sc.message||"")+'</p>'
+      +'<span class="badge">'+(sc.status||"OPEN")+'</span>'
+      +'<table>'
+      +'<tr><td>Ticket ID</td><td>'+(sc.ticketId||"—")+'</td></tr>'
+      +'<tr><td>Request Type</td><td>'+(sc.requestType||"—")+'</td></tr>'
+      +'<tr><td>Customer</td><td>'+(sc.customerName||"—")+'</td></tr>'
+      +'<tr><td>Agreement No.</td><td>'+(sc.agreementNo||"—")+'</td></tr>'
+      +'<tr><td>Created At</td><td>'+fmtDate(sc.createdAt)+'</td></tr>'
+      +'<tr><td>Resolution</td><td>Within '+(sc.estimatedResolutionDays||"?")+" business days</td></tr>"
+      +'</table>'
+      +'<p class="tip">📧 Confirmation sent to your registered mobile and email within 24 hrs.</p>'
+      +'</div>';
   }
-
-  function render(d) {
-    if (!d) return;
-    document.getElementById("root").innerHTML = \`
-      <div class="card">
-        <div class="icon">🎫</div>
-        <h2>Service Request Raised</h2>
-        <p class="sub">\${d.message || ""}</p>
-        <span class="badge \${d.status === "RESOLVED" ? "resolved" : ""}">\${d.status || "OPEN"}</span>
-        <table>
-          <tr><td>Ticket ID</td><td>\${d.ticketId || "—"}</td></tr>
-          <tr><td>Request Type</td><td>\${d.requestType || "—"}</td></tr>
-          <tr><td>Customer</td><td>\${d.customerName || "—"}</td></tr>
-          <tr><td>Agreement No.</td><td>\${d.agreementNo || "—"}</td></tr>
-          <tr><td>Created At</td><td>\${fmtDate(d.createdAt)}</td></tr>
-          <tr><td>Resolution</td><td>Within \${d.estimatedResolutionDays || "?"} business days</td></tr>
-        </table>
-        <p class="tip">📧 Confirmation will be sent to your registered mobile and email within 24 hours.</p>
-      </div>
-    \`;
-  }
-
-  init().catch(console.error);
+  render(window.openai&&window.openai.toolOutput);
+  window.addEventListener("message",function(e){
+    if(e.source!==window.parent)return;
+    var m=e.data;
+    if(m&&m.method==="ui/notifications/tool-result")render(m.params);
+  },{passive:true});
 </script>
 </body>
 </html>`;
