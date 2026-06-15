@@ -281,8 +281,17 @@ const WIDGET_LOAN_DASHBOARD = `<!DOCTYPE html>
     if(m.method==="ui/notifications/tool-result")render(m.params?.structuredContent);
   },{passive:true});
   async function init(){
-    await request("ui/initialize",{appInfo:{name:"loan-dashboard",version:"2.0"},appCapabilities:{},protocolVersion:"2026-01-26"});
-    notify("ui/notifications/initialized",{});
+    // ChatGPT populates window.openai.toolResult synchronously before widget loads.
+    // Try it first so we never show a blank "Loading..." state.
+    if(window.openai?.toolResult){
+      render(window.openai.toolResult.structuredContent || window.openai.toolResult);
+    }
+    try{
+      const result = await request("ui/initialize",{appInfo:{name:"loan-dashboard",version:"2.0"},appCapabilities:{},protocolVersion:"2026-01-26"});
+      notify("ui/notifications/initialized",{});
+      // Some hosts send the tool result back in the initialize response
+      if(result?.structuredContent) render(result.structuredContent);
+    }catch(e){ console.warn("bridge init failed",e); }
   }
   function cal(dateStr){
     if(!dateStr)return null;
@@ -368,8 +377,14 @@ const WIDGET_EMI_CARD = `<!DOCTYPE html>
   }, { passive: true });
 
   async function init() {
-    await request("ui/initialize", { appInfo:{ name:"emi-card", version:"1.0" }, appCapabilities:{}, protocolVersion:"2026-01-26" });
-    notify("ui/notifications/initialized", {});
+    if(window.openai?.toolResult){
+      render(window.openai.toolResult.structuredContent || window.openai.toolResult);
+    }
+    try{
+      const result = await request("ui/initialize", { appInfo:{ name:"emi-card", version:"1.0" }, appCapabilities:{}, protocolVersion:"2026-01-26" });
+      notify("ui/notifications/initialized", {});
+      if(result?.structuredContent) render(result.structuredContent);
+    }catch(e){ console.warn("bridge init failed",e); }
   }
 
   function fmtDate(iso) {
@@ -472,8 +487,14 @@ const WIDGET_LOAN_DISCOVERY = `<!DOCTYPE html>
   }, { passive: true });
 
   async function init() {
-    await request("ui/initialize", { appInfo:{ name:"loan-discovery", version:"1.0" }, appCapabilities:{}, protocolVersion:"2026-01-26" });
-    notify("ui/notifications/initialized", {});
+    if(window.openai?.toolResult){
+      render(window.openai.toolResult.structuredContent || window.openai.toolResult);
+    }
+    try{
+      const result = await request("ui/initialize", { appInfo:{ name:"loan-discovery", version:"1.0" }, appCapabilities:{}, protocolVersion:"2026-01-26" });
+      notify("ui/notifications/initialized", {});
+      if(result?.structuredContent) render(result.structuredContent);
+    }catch(e){ console.warn("bridge init failed",e); }
   }
 
   function render(d) {
@@ -581,8 +602,14 @@ const WIDGET_SERVICE_REQUEST = `<!DOCTYPE html>
   }, { passive: true });
 
   async function init() {
-    await request("ui/initialize", { appInfo:{ name:"service-request", version:"1.0" }, appCapabilities:{}, protocolVersion:"2026-01-26" });
-    notify("ui/notifications/initialized", {});
+    if(window.openai?.toolResult){
+      render(window.openai.toolResult.structuredContent || window.openai.toolResult);
+    }
+    try{
+      const result = await request("ui/initialize", { appInfo:{ name:"service-request", version:"1.0" }, appCapabilities:{}, protocolVersion:"2026-01-26" });
+      notify("ui/notifications/initialized", {});
+      if(result?.structuredContent) render(result.structuredContent);
+    }catch(e){ console.warn("bridge init failed",e); }
   }
 
   function fmtDate(iso) {
@@ -665,7 +692,7 @@ const TOOLS = [
       },
       required: [],
     },
-    _meta: { ui: { resourceUri: UI.DISCOVERY } },
+    _meta: { ui: { resourceUri: UI.DISCOVERY }, "openai/outputTemplate": UI.DISCOVERY },
     outputSchema: {
       type: "object",
       properties: {
@@ -687,7 +714,7 @@ const TOOLS = [
       },
       required: ["product"],
     },
-    _meta: { ui: { resourceUri: UI.DISCOVERY } },
+    _meta: { ui: { resourceUri: UI.DISCOVERY }, "openai/outputTemplate": UI.DISCOVERY },
     outputSchema: {
       type: "object",
       properties: {
@@ -712,7 +739,7 @@ const TOOLS = [
     description: "Returns full loan dashboard: amount, POS, ROI, tenure, next EMI, dates, overdue. Shows an interactive dashboard card.",
     annotations: { readOnlyHint: true },
     inputSchema: { type: "object", properties: {}, required: [] },
-    _meta: { ui: { resourceUri: UI.DASHBOARD } },
+    _meta: { ui: { resourceUri: UI.DASHBOARD }, "openai/outputTemplate": UI.DASHBOARD },
     outputSchema: {
       type: "object",
       properties: {
@@ -732,7 +759,7 @@ const TOOLS = [
     description: "Concise summary: customer name, loan type, status, ROI, balance tenure. Shows dashboard card.",
     annotations: { readOnlyHint: true },
     inputSchema: { type: "object", properties: {}, required: [] },
-    _meta: { ui: { resourceUri: UI.DASHBOARD } },
+    _meta: { ui: { resourceUri: UI.DASHBOARD }, "openai/outputTemplate": UI.DASHBOARD },
   },
   {
     name: "get_flexi_details",
@@ -740,7 +767,7 @@ const TOOLS = [
     description: "Returns Flexi Loan status, limit, and available amount. Shows dashboard card.",
     annotations: { readOnlyHint: true },
     inputSchema: { type: "object", properties: {}, required: [] },
-    _meta: { ui: { resourceUri: UI.DASHBOARD } },
+    _meta: { ui: { resourceUri: UI.DASHBOARD }, "openai/outputTemplate": UI.DASHBOARD },
   },
 
   // ── EMI / Balance tools ──────────────────────────────────────────────────
@@ -750,7 +777,7 @@ const TOOLS = [
     description: "Returns next EMI amount, next EMI due date, and missed EMI count. Shows EMI card.",
     annotations: { readOnlyHint: true },
     inputSchema: { type: "object", properties: {}, required: [] },
-    _meta: { ui: { resourceUri: UI.EMI } },
+    _meta: { ui: { resourceUri: UI.EMI }, "openai/outputTemplate": UI.EMI },
     outputSchema: {
       type: "object",
       properties: {
@@ -765,7 +792,7 @@ const TOOLS = [
     description: "Returns current total overdue amount. Shows EMI card.",
     annotations: { readOnlyHint: true },
     inputSchema: { type: "object", properties: {}, required: [] },
-    _meta: { ui: { resourceUri: UI.EMI } },
+    _meta: { ui: { resourceUri: UI.EMI }, "openai/outputTemplate": UI.EMI },
     outputSchema: {
       type: "object",
       properties: { totalOverDue: { type: "number" }, totalOverDueFormatted: { type: "string" } },
@@ -777,7 +804,7 @@ const TOOLS = [
     description: "Returns remaining repayment months. Shows EMI card.",
     annotations: { readOnlyHint: true },
     inputSchema: { type: "object", properties: {}, required: [] },
-    _meta: { ui: { resourceUri: UI.EMI } },
+    _meta: { ui: { resourceUri: UI.EMI }, "openai/outputTemplate": UI.EMI },
     outputSchema: {
       type: "object",
       properties: { balanceTenure: { type: "number" }, unit: { type: "string" } },
@@ -789,7 +816,7 @@ const TOOLS = [
     description: "Returns current principal outstanding (POS). Shows EMI card.",
     annotations: { readOnlyHint: true },
     inputSchema: { type: "object", properties: {}, required: [] },
-    _meta: { ui: { resourceUri: UI.EMI } },
+    _meta: { ui: { resourceUri: UI.EMI }, "openai/outputTemplate": UI.EMI },
     outputSchema: {
       type: "object",
       properties: { pos: { type: "number" }, posFormatted: { type: "string" } },
@@ -801,7 +828,7 @@ const TOOLS = [
     description: "Returns total overdue amount and missed EMI count. Shows EMI card.",
     annotations: { readOnlyHint: true },
     inputSchema: { type: "object", properties: {}, required: [] },
-    _meta: { ui: { resourceUri: UI.EMI } },
+    _meta: { ui: { resourceUri: UI.EMI }, "openai/outputTemplate": UI.EMI },
   },
 
   // ── Single-value tools (no widget — plain text reply) ────────────────────
@@ -900,7 +927,7 @@ const TOOLS = [
       },
       required: ["requestType"],
     },
-    _meta: { ui: { resourceUri: UI.SERVICE_REQ } },
+    _meta: { ui: { resourceUri: UI.SERVICE_REQ }, "openai/outputTemplate": UI.SERVICE_REQ },
     outputSchema: {
       type: "object",
       properties: {
