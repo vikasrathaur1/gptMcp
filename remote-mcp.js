@@ -203,10 +203,20 @@ function fmt(amount) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
 }
 
-function success(data, structuredContent) {
-  const result = {
-    content: [{ type: "text", text: JSON.stringify({ success: true, data }, null, 2) }],
-  };
+function success(data, structuredContent, narration) {
+  // When a widget exists, send only a terse one-liner in content[] so ChatGPT
+  // does NOT render a duplicate markdown table below the widget card.
+  let text;
+  if (narration !== undefined) {
+    text = narration;
+  } else if (structuredContent !== undefined) {
+    // Minimal narration — just enough for the model to confirm the action.
+    // ChatGPT will not display this as a table; the widget handles the UI.
+    text = 'Widget data loaded.';
+  } else {
+    text = JSON.stringify({ success: true, data }, null, 2);
+  }
+  const result = { content: [{ type: 'text', text }] };
   if (structuredContent !== undefined) result.structuredContent = structuredContent;
   return result;
 }
@@ -235,86 +245,74 @@ const WIDGET_LOAN_DASHBOARD = `<!DOCTYPE html>
 <title>Loan Dashboard</title>
 <style>
   :root { font-family: "Inter", system-ui, sans-serif; color: #0b0b0f; }
-  body { margin: 0; padding: 16px; background: #f6f8fb; }
-  .card { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,.07); max-width: 420px; margin: 0 auto; }
-  h2 { margin: 0 0 4px; font-size: 1.1rem; color: #1a1a2e; }
-  .sub { color: #6c768a; font-size: .85rem; margin: 0 0 20px; }
-  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: .78rem; font-weight: 600; background: #e6faf0; color: #1a7f50; margin-bottom: 16px; }
+  body { margin: 0; padding: 10px; background: #f6f8fb; }
+  .card { background: #fff; border-radius: 14px; padding: 14px 16px; box-shadow: 0 2px 10px rgba(0,0,0,.07); max-width: 390px; margin: 0 auto; }
+  .hdr { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+  .hdr h2 { margin: 0; font-size: .95rem; color: #1a1a2e; }
+  .hdr .sub { font-size: .72rem; color: #6c768a; margin-top: 2px; }
+  .badge { flex-shrink: 0; padding: 2px 9px; border-radius: 20px; font-size: .7rem; font-weight: 700; background: #e6faf0; color: #1a7f50; margin-left: 8px; margin-top: 2px; }
   .badge.closed { background: #fce; color: #a00; }
   table { width: 100%; border-collapse: collapse; }
-  tr { border-bottom: 1px solid #f0f2f8; }
+  tr { border-bottom: 1px solid #f3f4f8; }
   tr:last-child { border-bottom: none; }
-  td { padding: 9px 4px; font-size: .9rem; }
-  td:first-child { color: #6c768a; width: 55%; }
+  td { padding: 6px 2px; font-size: .85rem; vertical-align: middle; }
+  td:first-child { color: #6c768a; width: 50%; }
   td:last-child { font-weight: 600; text-align: right; }
-  .flexi-bar { margin-top: 16px; background: #f0f4ff; border-radius: 10px; padding: 12px 14px; }
-  .flexi-bar p { margin: 0; font-size: .85rem; }
-  .flexi-bar .label { color: #6c768a; font-size: .8rem; margin-bottom: 4px; }
-  .progress { background: #dde3f5; border-radius: 6px; height: 8px; margin-top: 6px; }
-  .progress-fill { background: #3b5bdb; border-radius: 6px; height: 8px; }
+  .cal { display: inline-flex; align-items: center; gap: 4px; background: #f0f4ff; color: #3b5bdb; border-radius: 7px; padding: 2px 7px; font-size: .78rem; font-weight: 600; }
+  .cal svg { width: 11px; height: 11px; }
+  .flexi { margin-top: 10px; background: #f0f4ff; border-radius: 9px; padding: 9px 11px; font-size: .82rem; }
+  .flexi .lbl { color: #6c768a; font-size: .72rem; margin-bottom: 2px; }
+  .bar { background: #dde3f5; border-radius: 5px; height: 5px; margin-top: 5px; }
+  .bar-fill { background: #3b5bdb; border-radius: 5px; height: 5px; }
+  .ok { color: #1a7f50; } .err { color: #c00; }
 </style>
 </head>
 <body>
-<div class="card" id="card">
-  <p style="color:#6c768a;font-size:.9rem">Loading loan details…</p>
-</div>
+<div class="card" id="card"><p style="color:#6c768a;font-size:.82rem;margin:0">Loading…</p></div>
 <script type="module">
-  let rpcId = 0;
-  const pending = new Map();
-
-  const notify  = (method, params) => window.parent.postMessage({ jsonrpc:"2.0", method, params }, "*");
-  const request = (method, params) => new Promise((res, rej) => {
-    const id = ++rpcId;
-    pending.set(id, { resolve: res, reject: rej });
-    window.parent.postMessage({ jsonrpc:"2.0", id, method, params }, "*");
-  });
-
-  window.addEventListener("message", e => {
-    if (e.source !== window.parent) return;
-    const m = e.data;
-    if (!m || m.jsonrpc !== "2.0") return;
-    if (typeof m.id === "number") {
-      const p = pending.get(m.id);
-      if (!p) return;
-      pending.delete(m.id);
-      m.error ? p.reject(m.error) : p.resolve(m.result);
-    }
-    if (m.method === "ui/notifications/tool-result") render(m.params?.structuredContent);
-  }, { passive: true });
-
-  async function init() {
-    await request("ui/initialize", { appInfo:{ name:"loan-dashboard", version:"1.0" }, appCapabilities:{}, protocolVersion:"2026-01-26" });
-    notify("ui/notifications/initialized", {});
+  let rpcId=0; const pending=new Map();
+  const notify=(m,p)=>window.parent.postMessage({jsonrpc:"2.0",method:m,params:p},"*");
+  const request=(m,p)=>new Promise((res,rej)=>{const id=++rpcId;pending.set(id,{resolve:res,reject:rej});window.parent.postMessage({jsonrpc:"2.0",id,method:m,params:p},"*");});
+  window.addEventListener("message",e=>{
+    if(e.source!==window.parent)return;
+    const m=e.data; if(!m||m.jsonrpc!=="2.0")return;
+    if(typeof m.id==="number"){const p=pending.get(m.id);if(!p)return;pending.delete(m.id);m.error?p.reject(m.error):p.resolve(m.result);}
+    if(m.method==="ui/notifications/tool-result")render(m.params?.structuredContent);
+  },{passive:true});
+  async function init(){
+    await request("ui/initialize",{appInfo:{name:"loan-dashboard",version:"2.0"},appCapabilities:{},protocolVersion:"2026-01-26"});
+    notify("ui/notifications/initialized",{});
   }
-
-  function render(d) {
-    if (!d) return;
-    const card = document.getElementById("card");
-    const flexiHtml = d.flexiEnabled ? \`
-      <div class="flexi-bar">
-        <p class="label">Flexi Limit Available</p>
-        <p><strong>\${d.flexiLimitFormatted || ""}</strong></p>
-        <div class="progress"><div class="progress-fill" style="width:72%"></div></div>
-      </div>\` : "";
-    card.innerHTML = \`
-      <h2>\${d.customerName || "Customer"}</h2>
-      <p class="sub">\${d.agreementNo || ""} &nbsp;·&nbsp; \${d.productType || ""}</p>
-      <span class="badge \${d.loanStatus === "Active" ? "" : "closed"}">\${d.loanStatus || ""}</span>
-      <table>
-        <tr><td>Loan Amount</td><td>\${d.loanAmountFormatted || d.loanAmount || "—"}</td></tr>
-        <tr><td>Outstanding (POS)</td><td>\${d.outstandingAmountFormatted || "—"}</td></tr>
-        <tr><td>Interest Rate</td><td>\${d.roi || "—"}</td></tr>
-        <tr><td>Tenure</td><td>\${d.grossTenure || "—"} months (\${d.balanceTenure || "—"} remaining)</td></tr>
-        <tr><td>Next EMI</td><td>\${d.nextEmiAmountFormatted || "—"}</td></tr>
-        <tr><td>Next EMI Date</td><td>\${d.nextEmiDate ? new Date(d.nextEmiDate).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}) : "—"}</td></tr>
-        <tr><td>Disbursement Date</td><td>\${d.disbursementDate || "—"}</td></tr>
-        <tr><td>Loan Expiry</td><td>\${d.loanExpiryDate || "—"}</td></tr>
-        <tr><td>Overdue</td><td style="color:\${d.totalOverDue>0?"#c00":"#1a7f50"}">\${d.totalOverDue !== undefined ? (d.totalOverDue > 0 ? "₹"+d.totalOverDue : "Nil") : "—"}</td></tr>
-      </table>
-      \${flexiHtml}
-    \`;
+  function cal(dateStr){
+    if(!dateStr)return null;
+    let d;
+    if(/\d{2}\/\d{2}\/\d{4}/.test(dateStr)){const p=dateStr.split("/");d=new Date(p[2]+"-"+p[1]+"-"+p[0]);}
+    else d=new Date(dateStr);
+    if(isNaN(d))return dateStr;
+    const lbl=d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
+    return \`<span class="cal"><svg viewBox="0 0 16 16" fill="#3b5bdb"><path d="M4 1v1H2a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1h-2V1h-1v1H5V1H4zm-2 4h12v8H2V5zm2 2v1h2V7H4zm3 0v1h2V7H7zm3 0v1h2V7h-2zM4 10v1h2v-1H4zm3 0v1h2v-1H7z"/></svg>\${lbl}</span>\`;
   }
-
+  function row(lbl,val){if(val===null||val===undefined||val==="")return"";return\`<tr><td>\${lbl}</td><td>\${val}</td></tr>\`;}
+  function render(d){
+    if(!d)return;
+    const rows=[
+      row("Loan Amount",       d.loanAmountFormatted||(d.loanAmount?"₹"+d.loanAmount:null)),
+      row("Outstanding (POS)", d.outstandingAmountFormatted||(d.outstandingAmount?"₹"+d.outstandingAmount:null)),
+      row("Interest Rate",     d.roi||null),
+      row("Tenure",            d.grossTenure?\`\${d.grossTenure} months (\${d.balanceTenure} remaining)\`:null),
+      row("Next EMI",          d.nextEmiAmountFormatted||(d.nextEmiAmount?"₹"+d.nextEmiAmount:null)),
+      row("Next EMI Date",     cal(d.nextEmiDate)),
+      row("Disbursed On",      cal(d.disbursementDate)),
+      row("Loan Expiry",       cal(d.loanExpiryDate)),
+      row("Overdue",           d.totalOverDue!==undefined?
+        (d.totalOverDue>0?\`<span class="err">₹\${d.totalOverDue}</span>\`:\`<span class="ok">Nil ✓</span>\`):null),
+    ].filter(Boolean).join("");
+    const flexi=d.flexiEnabled?\`<div class="flexi"><p class="lbl">Flexi Limit</p><strong>\${d.flexiLimitFormatted||""}</strong><div class="bar"><div class="bar-fill" style="width:72%"></div></div></div>\`:"";
+    document.getElementById("card").innerHTML=\`
+      <div class="hdr"><div><h2>\${d.customerName||"Customer"}</h2><div class="sub">\${d.agreementNo||""}\${d.productType?" · "+d.productType:""}</div></div>
+      <span class="badge \${d.loanStatus==="Active"?"":"closed"}">\${d.loanStatus||""}</span></div>
+      <table>\${rows}</table>\${flexi}\`;
+  }
   init().catch(console.error);
 </script>
 </body>
@@ -1000,7 +998,7 @@ function handleGetLoanDetails() {
     flexiEnabled: c.flexiFlag === "Y",
     flexiLimitFormatted: c.flexiFlag === "Y" ? fmt(c.amountDrawnLimit) : null,
   };
-  return success(d, d);
+  return success(d, d, `Loan details for ${d.customerName} — ${d.loanStatus} ${d.productType}, ROI ${d.roi}, ${d.balanceTenure} months remaining.`);
 }
 
 function handleGetFlexiDetails() {
@@ -1083,7 +1081,7 @@ function handleGetProductDetails() {
 function handleGetLoanSummary() {
   const c = getDemoCustomer();
   const d = { customerName: c.customer_Name, loanType: c.prodDesc, loanStatus: c.relStatus, roi: `${c.roi}% p.a.`, balanceTenure: `${c.balanceTenure} months`, agreementNo: c.agreementNo };
-  return success(d, d);
+  return success(d, d, `Loan summary for ${d.customerName}: ${d.loanType}, ${d.loanStatus}, ROI ${d.roi}, ${d.balanceTenure} remaining.`);
 }
 
 function handleCheckLoanClosureEligibility() {
