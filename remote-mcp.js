@@ -204,19 +204,20 @@ function fmt(amount) {
 }
 
 function success(data, structuredContent, narration) {
-  // When a widget exists, send only a terse one-liner in content[] so ChatGPT
-  // does NOT render a duplicate markdown table below the widget card.
-  let text;
-  if (narration !== undefined) {
-    text = narration;
-  } else if (structuredContent !== undefined) {
-    // Minimal narration — just enough for the model to confirm the action.
-    // ChatGPT will not display this as a table; the widget handles the UI.
-    text = 'Widget data loaded.';
+  // When a widget exists: pass empty content[] so ChatGPT renders ONLY the
+  // widget iframe and does NOT generate a markdown summary table below it.
+  // The model uses structuredContent for context; content[] drives text output.
+  let content;
+  if (structuredContent !== undefined) {
+    // Empty text suppresses all ChatGPT text rendering below the widget.
+    content = [{ type: 'text', text: '' }];
   } else {
-    text = JSON.stringify({ success: true, data }, null, 2);
+    const text = narration !== undefined
+      ? narration
+      : JSON.stringify({ success: true, data }, null, 2);
+    content = [{ type: 'text', text }];
   }
-  const result = { content: [{ type: 'text', text }] };
+  const result = { content };
   if (structuredContent !== undefined) result.structuredContent = structuredContent;
   return result;
 }
@@ -1157,6 +1158,14 @@ function createMcpServer() {
         _meta: {
           ui: {
             prefersBorder: true,
+            // domain enables the fullscreen button and tells ChatGPT's sandbox
+            // which origin to associate with this widget.
+            domain: BASE_URL,
+            // csp.connectDomains: origins the widget JS may fetch from.
+            // Empty array = no external fetches needed (all data via postMessage).
+            csp: {
+              connectDomains: [],
+            },
           },
         },
       }],
